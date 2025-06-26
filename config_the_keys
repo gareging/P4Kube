@@ -1,0 +1,2 @@
+chmod 0600 fabric_config/fabric_bastion_key
+chmod 0600 fabric_config/slice_key
