@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cpu-node-server
+  labels:
+    app: cpu-node-server
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: cpu-node-server
+  template:
+    metadata:
+      labels:
+        app: cpu-node-server
+    spec:
+      containers:
+      - name: cpu-node-server
+        image: aucslab/fastapi_container
+        ports:
+        - containerPort: 80
+        env:
+        - name: node_name
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cpu-node-server-service
+spec:
+  selector:
+    app: cpu-node-server
+  type: NodePort
+  externalTrafficPolicy: Local
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
