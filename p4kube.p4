@@ -7,385 +7,13 @@ const bit<16> TYPE_IPV4 = 0x800;
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
 *************************************************************************/
-
-typedef bit<9>  egressSpec_t;
-typedef bit<48> macAddr_t;
-typedef bit<32> ip4Addr_t;
-
-header ethernet_t {
-    macAddr_t dstAddr;
-    macAddr_t srcAddr;
-    bit<16>   etherType;
-}
-
-header ipv4_t {
-    bit<4>    version;
-    bit<4>    ihl;
-    bit<8>    diffserv;
-    bit<16>   totalLen;
-    bit<16>   identification;
-    bit<3>    flags;
-    bit<13>   fragOffset;
-    bit<8>    ttl;
-    bit<8>    protocol;
-    bit<16>   hdrChecksum;
-    ip4Addr_t srcAddr;
-    ip4Addr_t dstAddr;
-}
-
-header udp_t {
-    bit<16>  srcPort;
-    bit<16>  dstPort;
-    bit<16>  length;
-    bit<16>  checksum;
-}
-
-header tcp_t {
-    bit<16> srcPort;
-    bit<16> dstPort;
-    bit<32> seqNo;
-    bit<32> ackNo;
-    bit<4>  dataOffset;
-    bit<4>  res;
-    bit<1>  cwr;
-    bit<1>  ece;
-    bit<1>  urg;
-    bit<1>  ack;
-    bit<1>  psh;
-    bit<1>  rst;
-    bit<1>  syn;
-    bit<1>  fin;
-    bit<16> window;
-    bit<16> checksum;
-    bit<16> urgentPtr;
-}
-
-
-/*TCP timestamp implementation sources:
-https://github.com/cheetahlib/cheetah-p4
-https://github.com/jafingerhut/p4-guide/blob/master/tcp-options-parser/tcp-options-parser.p4 */
-header Tcp_option_end_h {
-    bit<8> kind;
-}
-header Tcp_option_nop_h {
-    bit<8> kind;
-}
-header Tcp_option_sz_h {
-    bit<8> length;
-}
-header Tcp_option_ss_h {
-    bit<8>  kind;
-    bit<8> length;
-    bit<32> maxSegmentSize;
-}
-header Tcp_option_s_h {
-    bit<8>  kind;
-    bit<24> scale;
-}
-header Tcp_option_sack_h {
-    bit<8>         kind;
-    bit<8>         length;
-    varbit<256>    sack;
-}
-
-header Tcp_option_timestamp_h {
-    bit<8>         kind;
-    bit<8>         length;
-    bit<32> tsval;
-    bit<32> tsecr;
-}
-
-//Versions without the kind for hop by hop
-header Tcp_option_ss_e {
-    bit<8> length;
-    bit<16> maxSegmentSize;
-}
-
-header Tcp_option_sack_e {
-    varbit<256>    sack;
-}
-header Tcp_option_timestamp_e {
-    bit<8>         length;
-    bit<32> tsval;
-    bit<32> tsecr;
-}
-
-header_union Tcp_option_h {
-    Tcp_option_end_h  end;
-    Tcp_option_nop_h  nop;
-    Tcp_option_ss_h   ss;
-    Tcp_option_s_h    s;
-    Tcp_option_sack_h sack;
-    Tcp_option_timestamp_h timestamp;    
-}
-
-// Defines a stack of 10 tcp options
-typedef Tcp_option_h[10] Tcp_option_stack;
-
-header Tcp_option_padding_h {
-    varbit<256> padding;
-}
-
-error {
-    TcpDataOffsetTooSmall,
-    TcpOptionTooLongForHeader,
-    TcpBadSackOptionLength
-}
-
-struct Tcp_option_sack_top
-{
-    bit<8> kind;
-    bit<8> length;
-}
-
-
-struct metadata {
-    bit<14> ecmpHash;
-    bit<14> ecmpGroupId;
-    bit<16> tcpLength;
-    bit<32> port_id;
-}
-
-header info_t {
-    bit<32> virtualIP;  // Virtual IP for deployment identification
-    bit<16> port;       // NodePort for routing
-    bit<16> replicas;
-}
-
-#define MAX_IPV4_ADDRESSES  100
-
-header ips_t {
-    ip4Addr_t ipAddress;
-}
-
-struct headers {
-    ethernet_t ethernet;
-    ipv4_t     ipv4;
-    udp_t      udp;
-    tcp_t      tcp;
-    //Tcp_option_stack tcp_options_vec;
-    //Tcp_option_padding_h tcp_options_padding;
-    Tcp_option_nop_h nop1;
-    Tcp_option_nop_h nop2;
-    //Linux MSS SACK TS
-    Tcp_option_ss_e ss;
-    Tcp_option_nop_h nop3;
-    Tcp_option_sz_h sackw;
-    Tcp_option_sack_e sack;
-    Tcp_option_nop_h nop4;
-    Tcp_option_timestamp_e timestamp;
-    info_t     info;
-    ips_t[MAX_IPV4_ADDRESSES] ips;
-}
-
-error {
-    BadReplicaCount
-}
+#include "include/headers.p4"
+#define BUCKET_SIZE 6
+#define COUNTER_WIDTH 16
 /*************************************************************************
 *********************** P A R S E R  ***********************************
 *************************************************************************/
-
-/*TCP timestamp implementation sources:                                         
-https://github.com/cheetahlib/cheetah-p4                                        
-https://github.com/jafingerhut/p4-guide/blob/master/tcp-options-parser/tcp-options-parser.p4 */
-
-parser Tcp_option_parser(packet_in b,
-                         in bit<4> tcp_hdr_data_offset,
-                         out Tcp_option_stack vec,
-                         out Tcp_option_padding_h padding)
-{
-    bit<7> tcp_hdr_bytes_left;
-    
-    state start {
-        verify(tcp_hdr_data_offset >= 5, error.TcpDataOffsetTooSmall);
-        tcp_hdr_bytes_left = 4 * (bit<7>) (tcp_hdr_data_offset - 5);
-        transition next_option;
-    }
-    state next_option {
-        transition select(tcp_hdr_bytes_left) {
-            0 : accept;
-            default : next_option_part2;
-        }
-    }
-    
-    state next_option_part2 {
-        transition select(b.lookahead<bit<8>>()) {
-            0: parse_tcp_option_end;
-            1: parse_tcp_option_nop;
-            2: parse_tcp_option_ss;
-            3: parse_tcp_option_s;
-            5: parse_tcp_option_sack;
-	    8: parse_tcp_option_timestamp;
-        }
-    }
-
-    state parse_tcp_option_timestamp {
-        verify(tcp_hdr_bytes_left >= 10, error.TcpOptionTooLongForHeader);
-        tcp_hdr_bytes_left = tcp_hdr_bytes_left - 10;
-        b.extract(vec.next.timestamp);
-        transition next_option;
-    }
-    
-    state parse_tcp_option_end {
-        b.extract(vec.next.end);
-        tcp_hdr_bytes_left = tcp_hdr_bytes_left - 1;
-        transition consume_remaining_tcp_hdr_and_accept;
-    }
-    state consume_remaining_tcp_hdr_and_accept {
-        b.extract(padding, (bit<32>) (8 * (bit<9>) tcp_hdr_bytes_left));
-        transition accept;
-    }
-    state parse_tcp_option_nop {
-        b.extract(vec.next.nop);
-        tcp_hdr_bytes_left = tcp_hdr_bytes_left - 1;
-        transition next_option;
-    }
-    state parse_tcp_option_ss {
-        verify(tcp_hdr_bytes_left >= 5, error.TcpOptionTooLongForHeader);
-        tcp_hdr_bytes_left = tcp_hdr_bytes_left - 5;
-        b.extract(vec.next.ss);
-        transition next_option;
-    }
-    state parse_tcp_option_s {
-        verify(tcp_hdr_bytes_left >= 4, error.TcpOptionTooLongForHeader);
-        tcp_hdr_bytes_left = tcp_hdr_bytes_left - 4;
-        b.extract(vec.next.s);
-        transition next_option;
-    }
-    state parse_tcp_option_sack {
-        bit<8> n_sack_bytes = b.lookahead<Tcp_option_sack_top>().length;
-        verify(n_sack_bytes == 10 || n_sack_bytes == 18 ||
-               n_sack_bytes == 26 || n_sack_bytes == 34,
-               error.TcpBadSackOptionLength);
-        verify(tcp_hdr_bytes_left >= (bit<7>) n_sack_bytes,
-               error.TcpOptionTooLongForHeader);
-        tcp_hdr_bytes_left = tcp_hdr_bytes_left - (bit<7>) n_sack_bytes;
-        b.extract(vec.next.sack, (bit<32>) (8 * n_sack_bytes - 16));
-        transition next_option;
-    }
-}
-
-parser MyParser(packet_in packet,
-                out headers hdr,
-                inout metadata meta,
-                inout standard_metadata_t standard_metadata) {
-
-    bit<16> number_replicas_remaining_to_parse;
-
-    state start {
-        transition parse_ethernet;
-    }
-
-    state parse_ethernet {
-        packet.extract(hdr.ethernet);
-        transition select(hdr.ethernet.etherType) {
-            TYPE_IPV4: parse_ipv4;
-            default: accept;
-        }
-    }
-
-    state parse_ipv4 {
-        packet.extract(hdr.ipv4);
-        meta.tcpLength = hdr.ipv4.totalLen - 20;
-        transition select(hdr.ipv4.protocol) {
-            6: parse_tcp;
-            17: parse_udp;
-            default: accept;
-        }
-    }
-
-    state parse_tcp {
-        packet.extract(hdr.tcp);
-        packet.extract(hdr.nop1);
-        transition select(hdr.nop1.kind){
-	    1: parse_nop;
-            2: parse_ss;
-            4: parse_sack;
-            8: parse_ts;
-		default: accept;
-	    }
-    }	
-
-    state parse_nop {
-        packet.extract(hdr.nop2);
-         transition select(hdr.nop2.kind){
-            1: parse_nop2;
-            8: parse_ts;
-	    }
-    }
-
-    state parse_nop2 {
-        packet.extract(hdr.nop3);
-         transition select(hdr.nop3.kind){
-            8: parse_ts;
-		default: accept;
-	    }
-    }
-    state parse_ss {
-        //Finish parsing SS
-        packet.extract(hdr.ss);
-        packet.extract(hdr.nop3);
-        transition select(hdr.nop3.kind){
-            4: parse_sack;
-            8: parse_ts;
-		default: accept;
-	    }
-    }
-
-    state parse_sack {
-        packet.extract(hdr.sackw);
-        packet.extract(hdr.sack, (bit<32>)hdr.sackw.length - 2);
-        packet.extract(hdr.nop4);
-        transition select(hdr.nop4.kind){
-            8: parse_ts;
-		default: accept;
-	    }
-    }
-
-    state parse_ts {
-        packet.extract(hdr.timestamp);
-        transition accept;
-    }
-
-    state parse_udp {
-        packet.extract(hdr.udp);
-        transition select(hdr.udp.dstPort) {
-            7777: parse_info;
-            default: accept;
-        }
-    }
-
- // State to parse the incoming control packet and store the values
-    state parse_info {
-        packet.extract(hdr.info); // Extract virtual IP, NodePort, and replicas
-        verify(hdr.info.replicas <= 10, error.BadReplicaCount);
-        verify(hdr.info.replicas >= 0, error.BadReplicaCount);
-        number_replicas_remaining_to_parse = hdr.info.replicas;
-        transition select(hdr.info.replicas) {
-            1: parse_ips;
-            2: parse_ips;
-            3: parse_ips;
-            4: parse_ips;
-            5: parse_ips;
-            6: parse_ips;
-            7: parse_ips;
-            8: parse_ips;
-            9: parse_ips;
-            10: parse_ips;
-            default: accept;
-        }
-    }
-    // State to parse IP addresses for replicas
-    state parse_ips {
-        packet.extract(hdr.ips.next); // Extract IP of next replica
-        number_replicas_remaining_to_parse = number_replicas_remaining_to_parse - 1;
-        transition select(number_replicas_remaining_to_parse) {
-            0: accept;
-            default: parse_ips;
-        }
-    }
-}
-
+#include "include/parsers.p4"
 /*************************************************************************
 ************   C H E C K S U M    V E R I F I C A T I O N   *************
 *************************************************************************/
@@ -400,6 +28,7 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 
 register<bit<32>>(MAX_IPV4_ADDRESSES) ip_addresses;
 register<bit<32>>(MAX_IPV4_ADDRESSES) port_to_ip;
+register<bit<4>>(MAX_IPV4_ADDRESSES) quic_id_to_ip;
 register<bit<16>>(10) node_port; 
 register<bit<16>>(10) replica_count; 
 register<bit<32>>(10) virtual_ip; 
@@ -526,8 +155,111 @@ control MyIngress(inout headers hdr,
         node_port.read(node_port_9, 9);  // Read node_port[9] into node_port_9
         bit<32> subnet_mask = 0xFFFFFF00;  // 255.255.255.0 mask to match 10.0.0.*
         bit<32> subnet_prefix = 0x0A000000;  // 10.0.0.0 in hexadecimal
+        if (hdr.quic.isValid() && ((hdr.ipv4.dstAddr & subnet_mask) == subnet_prefix)){
+            // quic packet to server
+             if ((hdr.quic.hdr_type == 1) && (hdr.quic.pkt_type == (bit<2>)0)){
+                 // handshake
+                 bit<32> replica_offset = 0; 
+                 bit<32> base_ip = 0;         
+                 bit<32> node_port_index = 0; 
+                 num_groups = 0;
+                 bit<32> replica_counter_value = 0;  // Variable to hold the current counter value
+
+
+               // Determine which deployment this request is for based on IP
+                if (hdr.ipv4.dstAddr == target_ip1) {
+                     base_ip = target_ip1;
+                     replica_count.read(num_groups, 0);  
+                     replica_offset = 0;  
+                     node_port_index = 0; 
+                 } else if (hdr.ipv4.dstAddr == target_ip2) {
+                     base_ip = target_ip2;
+                     replica_count.read(num_groups, 1);  
+                     replica_offset = 10;  
+                     node_port_index = 1; 
+                 } else if (hdr.ipv4.dstAddr == target_ip3){
+                     base_ip = target_ip3;
+                     replica_count.read(num_groups, 2);
+                     replica_offset = 20;
+                     node_port_index = 2;
+                 } else if (hdr.ipv4.dstAddr == target_ip4) {
+                     base_ip = target_ip4;
+                     replica_count.read(num_groups, 3);
+                     replica_offset = 30;
+                     node_port_index = 3;
+                 } else if (hdr.ipv4.dstAddr == target_ip5) {
+                     base_ip = target_ip5;
+                     replica_count.read(num_groups, 4);
+                     replica_offset = 40;
+                     node_port_index = 4;
+                 } else if (hdr.ipv4.dstAddr == target_ip6) {
+                     base_ip = target_ip6;
+                     replica_count.read(num_groups, 5);
+                     replica_offset = 50;
+                     node_port_index = 5;
+                 } else if (hdr.ipv4.dstAddr == target_ip7) {
+                     base_ip = target_ip7;
+                     replica_count.read(num_groups, 6);
+                     replica_offset = 60;
+                     node_port_index = 6;
+                 } else if (hdr.ipv4.dstAddr == target_ip8) {
+                     base_ip = target_ip8;
+                     replica_count.read(num_groups, 7);
+                     replica_offset = 70;
+                     node_port_index = 7;
+                 } else if (hdr.ipv4.dstAddr == target_ip9) {
+                     base_ip = target_ip9;
+                     replica_count.read(num_groups, 8);
+                     replica_offset = 80;
+                     node_port_index = 8;
+                 } else if (hdr.ipv4.dstAddr == target_ip10) {
+                     base_ip = target_ip10;
+                     replica_count.read(num_groups, 9);
+                     replica_offset = 90;
+                     node_port_index = 9;
+                 } else {
+                     drop();
+                 }
+
+                 if (num_groups == 0) {
+                     drop();  // If no replicas, drop the packet
+                 }
+
+                 // Hash across [0, num_groups) to choose a replica
+                hash(meta.ecmpHash,
+                    HashAlgorithm.crc16,
+                    (bit<1>)0,
+                    { hdr.ipv4.srcAddr,
+                    hdr.ipv4.dstAddr,
+                    hdr.udp.srcPort,
+                    hdr.udp.dstPort,
+                    hdr.ipv4.protocol,
+                    base_ip },  // base for the hash function
+                    num_groups);
+
+                bit<32> replica_index = replica_offset + (bit<32>)meta.ecmpHash;
+
+                bit<16> sum = 0;
+                subtract(sum, hdr.udp.checksum);
+                subtract(sum, hdr.udp.dstPort);
+                subtract32(sum, hdr.ipv4.dstAddr);
+
+                ip_addresses.read(hdr.ipv4.dstAddr, replica_index);
+
+                node_port.read(hdr.udp.dstPort, node_port_index);
+
+                add32(sum, hdr.ipv4.dstAddr);
+                add(sum, hdr.udp.dstPort);
+                hdr.udp.checksum = ~sum;
+
+                // Apply Longest Prefix Match to route to the next hop
+                ipv4_lpm.apply();
+                 
+	     }
+            
+        } 
         // Check if the request is a TCP request on port 80, and the destination IP is 10.0.0.2, 10.0.0.3 or 10.0.0.4 
-        if (hdr.tcp.isValid() && hdr.tcp.dstPort == 80 && ((hdr.ipv4.dstAddr & subnet_mask) == subnet_prefix)) {  
+        else if (hdr.tcp.isValid() && hdr.tcp.dstPort == 80 && ((hdr.ipv4.dstAddr & subnet_mask) == subnet_prefix)) {  
             bit<32> replica_offset = 0; 
             bit<32> base_ip = 0;         
             bit<32> node_port_index = 0; 
@@ -850,6 +582,13 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit(hdr.ipv4);
         packet.emit(hdr.tcp);
         packet.emit(hdr.udp);
+        packet.emit(hdr.quic);
+        //packet.emit(hdr.quicShort);
+        //packet.emit(hdr.quicLong1);
+        //packet.emit(hdr.quicToken);
+        //packet.emit(hdr.quicPayloadLen);
+        //packet.emit(hdr.quicPayload);
+        //packet.emit(hdr.quicLong2);
         packet.emit(hdr.nop1);
         packet.emit(hdr.nop2);
         packet.emit(hdr.ss);
