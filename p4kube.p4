@@ -165,61 +165,11 @@ control MyIngress(inout headers hdr,
                  num_groups = 0;
                  bit<32> replica_counter_value = 0;  // Variable to hold the current counter value
 
-
-               // Determine which deployment this request is for based on IP
-                if (hdr.ipv4.dstAddr == target_ip1) {
-                     base_ip = target_ip1;
-                     replica_count.read(num_groups, 0);  
-                     replica_offset = 0;  
-                     node_port_index = 0; 
-                 } else if (hdr.ipv4.dstAddr == target_ip2) {
-                     base_ip = target_ip2;
-                     replica_count.read(num_groups, 1);  
-                     replica_offset = 10;  
-                     node_port_index = 1; 
-                 } else if (hdr.ipv4.dstAddr == target_ip3){
-                     base_ip = target_ip3;
-                     replica_count.read(num_groups, 2);
-                     replica_offset = 20;
-                     node_port_index = 2;
-                 } else if (hdr.ipv4.dstAddr == target_ip4) {
-                     base_ip = target_ip4;
-                     replica_count.read(num_groups, 3);
-                     replica_offset = 30;
-                     node_port_index = 3;
-                 } else if (hdr.ipv4.dstAddr == target_ip5) {
-                     base_ip = target_ip5;
-                     replica_count.read(num_groups, 4);
-                     replica_offset = 40;
-                     node_port_index = 4;
-                 } else if (hdr.ipv4.dstAddr == target_ip6) {
-                     base_ip = target_ip6;
-                     replica_count.read(num_groups, 5);
-                     replica_offset = 50;
-                     node_port_index = 5;
-                 } else if (hdr.ipv4.dstAddr == target_ip7) {
-                     base_ip = target_ip7;
-                     replica_count.read(num_groups, 6);
-                     replica_offset = 60;
-                     node_port_index = 6;
-                 } else if (hdr.ipv4.dstAddr == target_ip8) {
-                     base_ip = target_ip8;
-                     replica_count.read(num_groups, 7);
-                     replica_offset = 70;
-                     node_port_index = 7;
-                 } else if (hdr.ipv4.dstAddr == target_ip9) {
-                     base_ip = target_ip9;
-                     replica_count.read(num_groups, 8);
-                     replica_offset = 80;
-                     node_port_index = 8;
-                 } else if (hdr.ipv4.dstAddr == target_ip10) {
-                     base_ip = target_ip10;
-                     replica_count.read(num_groups, 9);
-                     replica_offset = 90;
-                     node_port_index = 9;
-                 } else {
-                     drop();
-                 }
+                 bit<32> dpl = hdr.ipv4.dstAddr & 15;
+                 node_port_index = dpl-2;
+                 replica_offset = (dpl-2)*10;
+                 base_ip = hdr.ipv4.dstAddr;
+                 replica_count.read(num_groups, dpl-2);
 
                  if (num_groups == 0) {
                      drop();  // If no replicas, drop the packet
@@ -266,61 +216,12 @@ control MyIngress(inout headers hdr,
             num_groups = 0;
             bit<32> replica_counter_value = 0;  // Variable to hold the current counter value
 
+            bit<32> dpl = hdr.ipv4.dstAddr & 15;
+            node_port_index = dpl-2;
+            replica_offset = (dpl-2)*10;
+            base_ip = hdr.ipv4.dstAddr;
+            replica_count.read(num_groups, dpl-2);
 
-            // Determine which deployment this request is for based on IP
-            if (hdr.ipv4.dstAddr == target_ip1) {
-                base_ip = target_ip1;
-                replica_count.read(num_groups, 0);  
-                replica_offset = 0;  
-                node_port_index = 0; 
-            } else if (hdr.ipv4.dstAddr == target_ip2) {
-                base_ip = target_ip2;
-                replica_count.read(num_groups, 1);  
-                replica_offset = 10;  
-                node_port_index = 1; 
-            } else if (hdr.ipv4.dstAddr == target_ip3){
-                base_ip = target_ip3;
-                replica_count.read(num_groups, 2);
-                replica_offset = 20;
-                node_port_index = 2;
-            } else if (hdr.ipv4.dstAddr == target_ip4) {
-                base_ip = target_ip4;
-                replica_count.read(num_groups, 3);
-                replica_offset = 30;
-                node_port_index = 3;
-            } else if (hdr.ipv4.dstAddr == target_ip5) {
-                base_ip = target_ip5;
-                replica_count.read(num_groups, 4);
-                replica_offset = 40;
-                node_port_index = 4;
-            } else if (hdr.ipv4.dstAddr == target_ip6) {
-                base_ip = target_ip6;
-                replica_count.read(num_groups, 5);
-                replica_offset = 50;
-                node_port_index = 5;
-            } else if (hdr.ipv4.dstAddr == target_ip7) {
-                base_ip = target_ip7;
-                replica_count.read(num_groups, 6);
-                replica_offset = 60;
-                node_port_index = 6;
-            } else if (hdr.ipv4.dstAddr == target_ip8) {
-                base_ip = target_ip8;
-                replica_count.read(num_groups, 7);
-                replica_offset = 70;
-                node_port_index = 7;
-            } else if (hdr.ipv4.dstAddr == target_ip9) {
-                base_ip = target_ip9;
-                replica_count.read(num_groups, 8);
-                replica_offset = 80;
-                node_port_index = 8;
-            } else if (hdr.ipv4.dstAddr == target_ip10) {
-                base_ip = target_ip10;
-                replica_count.read(num_groups, 9);
-                replica_offset = 90;
-                node_port_index = 9;
-            } else {
-                drop();
-            }
 
             // Check if there are any replicas, if not, drop the packet
             if (num_groups == 0) {
