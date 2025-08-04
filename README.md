@@ -34,12 +34,8 @@ Use quic.yaml. On the client:
    git clone https://github.com/aiortc/aioquic.git
    sudo apt install libssl-dev python3.9 python3.9-venv python3.9-dev -y
    sudo apt install python3-pip -y
-   cd aioquic/
-   python3.9 -m pip install -r requirements/doc.txt
-   python3.9 -m pip install -r requirements.txt
-   python3.9 -m pip install .
-
-   cd examples
+   pip3 install aioquic wsproto
+   cd aioquic/examples
    python3 http3_client.py --insecure https://10.0.0.2:4433/
    ```
 
