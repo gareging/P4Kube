@@ -28,7 +28,13 @@ For any questions, email to grigoryan@alfred.edu.
 
 ## Testing QUIC
 
-Use quic.yaml. On the client:
+On master, run 
+
+   ```
+   kubectl apply -f quic.yaml
+   ```
+
+On the client:
 
    ```
    git clone https://github.com/aiortc/aioquic.git
