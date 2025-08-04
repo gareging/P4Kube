@@ -26,3 +26,11 @@ Open `P4Kube.ipynb` in JupyterLab on the FABRIC testbed and follow the step-by-s
 
 For any questions, email to grigoryan@alfred.edu.
 
+## Testing QUIC
+
+Use quic.yaml. On the client:
+
+   ```git clone https://github.com/aiortc/aioquic.git 
+   cd aioquic/examples
+   python3 http3_client.py --insecure https://10.0.0.2:4433/
+
