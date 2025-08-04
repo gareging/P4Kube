@@ -1,0 +1,8 @@
+uvloop>=0.14.0
+cryptography>=3.3
+pylru>=1.2.0
+sortedcontainers>=2.1.0
+wsproto
+starlette
+jinja2
+uvicorn
