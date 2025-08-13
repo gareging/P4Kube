@@ -39,8 +39,8 @@ On the client:
    ```
    git clone https://github.com/aiortc/aioquic.git;
    sudo apt install libssl-dev python3.9 python3.9-venv python3.9-dev -y;
-   sudo apt install python3-pip -y
-   pip3 install aioquic wsproto;;
+   sudo apt install python3-pip -y;
+   pip3 install aioquic wsproto;
    cd aioquic/examples;
    python3 http3_client.py --insecure https://10.0.0.2:4433/;
    ```
