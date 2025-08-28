@@ -359,6 +359,7 @@ func mapEqual(skipMap map[string]bool, prevSkipMap map[string]bool) bool {
 	return true
 }
 func main() {
+    fmt.Println("P4Kube plugin is running")
 	test()
 	flag.Parse()
 	logs.InitLogs()
