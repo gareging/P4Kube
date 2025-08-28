@@ -3,6 +3,18 @@
 > **P4Kube: In-Network Load Balancer for Kubernetes**  
 > [Read the conference paper here](https://scholar.google.com/citations?view_op=view_citation&hl=en&user=D8zUvAMAAAAJ&sortby=pubdate&citation_for_view=D8zUvAMAAAAJ:3fE2CSJIrl8C)
 
+## Citation
+
+If you use **P4Kube** in your research, please cite our paper:
+
+@inproceedings{grigoryan2025p4kube,
+title={P4Kube: In-Network Load Balancer for Kubernetes},
+author={Grigoryan, Garegin and Penkowski, Kevin and Kwon, Minseok},
+booktitle={2025 IEEE 22nd Consumer Communications & Networking Conference (CCNC)},
+pages={1--6},
+year={2025},
+organization={IEEE}
+}
 ---
 
 ## Getting Started
