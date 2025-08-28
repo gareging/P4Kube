@@ -227,70 +227,70 @@ control MyIngress(inout headers hdr,
             if (num_groups == 0) {
                 drop();  // If no replicas, drop the packet
             }
-	   else if (hdr.tcp.syn == 0 && hdr.timestamp.isValid()){
-                // after handshake
-		decode();
-		bit<16> sum = 0;
-	        subtract(sum, hdr.tcp.checksum);
-	        subtract(sum, hdr.tcp.dstPort);
-                subtract32(sum, hdr.ipv4.dstAddr);
-		node_port.read(hdr.tcp.dstPort, node_port_index);
-		port_to_ip.read(hdr.ipv4.dstAddr, meta.port_id);
-                add32(sum, hdr.ipv4.dstAddr);
-                add(sum, hdr.tcp.dstPort);
-	        hdr.tcp.checksum = ~sum;
-		ipv4_lpm.apply();
-	   }
+		   else if (hdr.tcp.syn == 0 && hdr.timestamp.isValid()){
+	                // after handshake
+			decode();
+			bit<16> sum = 0;
+		        subtract(sum, hdr.tcp.checksum);
+		        subtract(sum, hdr.tcp.dstPort);
+	                subtract32(sum, hdr.ipv4.dstAddr);
+			node_port.read(hdr.tcp.dstPort, node_port_index);
+			port_to_ip.read(hdr.ipv4.dstAddr, meta.port_id);
+	                add32(sum, hdr.ipv4.dstAddr);
+	                add(sum, hdr.tcp.dstPort);
+		        hdr.tcp.checksum = ~sum;
+			ipv4_lpm.apply();
+		   }
 
-	   else {
-                // Hash across [0, num_groups) to choose a replica
-                hash(meta.ecmpHash,
-                    HashAlgorithm.crc16,
-                    (bit<1>)0,
-                    { hdr.ipv4.srcAddr,
-                    hdr.ipv4.dstAddr,
-                    hdr.tcp.srcPort,
-                    hdr.tcp.dstPort,
-                    hdr.ipv4.protocol,
-                    base_ip },  // base for the hash function
-                    num_groups);
-
-                bit<32> replica_index = replica_offset + (bit<32>)meta.ecmpHash;
-
-                bit<16> sum = 0;
-                subtract(sum, hdr.tcp.checksum);
-                subtract(sum, hdr.tcp.dstPort);
-                subtract32(sum, hdr.ipv4.dstAddr);
-
-                // Select the correct replica based on the hash
-                ip_addresses.read(hdr.ipv4.dstAddr, replica_index);
-
-                // Set replica_counter_value to 0 before reading
-                replica_counter_value = 0;
-                replica_request_counter.read(replica_counter_value, replica_index);
-
-                // Debug output to verify the initial value read
-
-                // Explicitly add 1
-                bit<32> increment = 1;
-                replica_counter_value = replica_counter_value + increment;
-
-                // Write the updated counter value back
-                replica_request_counter.write(replica_index, replica_counter_value);
-
-                // Debug output to confirm the final value
-
-
-                // Now read the NodePort based on the earlier determined index
-                node_port.read(hdr.tcp.dstPort, node_port_index);
-
-                add32(sum, hdr.ipv4.dstAddr);
-                add(sum, hdr.tcp.dstPort);
-                hdr.tcp.checksum = ~sum;
-
-                // Apply Longest Prefix Match to route to the next hop
-                ipv4_lpm.apply();
-            }   
+		   else {
+	                // Hash across [0, num_groups) to choose a replica
+	                hash(meta.ecmpHash,
+	                    HashAlgorithm.crc16,
+	                    (bit<1>)0,
+	                    { hdr.ipv4.srcAddr,
+	                    hdr.ipv4.dstAddr,
+	                    hdr.tcp.srcPort,
+	                    hdr.tcp.dstPort,
+	                    hdr.ipv4.protocol,
+	                    base_ip },  // base for the hash function
+	                    num_groups);
+	
+	                bit<32> replica_index = replica_offset + (bit<32>)meta.ecmpHash;
+	
+	                bit<16> sum = 0;
+	                subtract(sum, hdr.tcp.checksum);
+	                subtract(sum, hdr.tcp.dstPort);
+	                subtract32(sum, hdr.ipv4.dstAddr);
+	
+	                // Select the correct replica based on the hash
+	                ip_addresses.read(hdr.ipv4.dstAddr, replica_index);
+	
+	                // Set replica_counter_value to 0 before reading
+	                replica_counter_value = 0;
+	                replica_request_counter.read(replica_counter_value, replica_index);
+	
+	                // Debug output to verify the initial value read
+	
+	                // Explicitly add 1
+	                bit<32> increment = 1;
+	                replica_counter_value = replica_counter_value + increment;
+	
+	                // Write the updated counter value back
+	                replica_request_counter.write(replica_index, replica_counter_value);
+	
+	                // Debug output to confirm the final value
+	
+	
+	                // Now read the NodePort based on the earlier determined index
+	                node_port.read(hdr.tcp.dstPort, node_port_index);
+	
+	                add32(sum, hdr.ipv4.dstAddr);
+	                add(sum, hdr.tcp.dstPort);
+	                hdr.tcp.checksum = ~sum;
+	
+	                // Apply Longest Prefix Match to route to the next hop
+	                ipv4_lpm.apply();
+	            }   
         }
 
         else if (hdr.tcp.isValid()) {
