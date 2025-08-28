@@ -25,10 +25,9 @@ To run the code and reproduce our experiments:
 1. **Access the FABRIC testbed**  
    Ensure you have a FABRIC account and access to [JupyterLab on FABRIC](https://learn.fabric-testbed.net/).
 
-2. **Clone the repository inside JupyterLab on FABRIC:**
+2. **Clone P4Kube_setup.ipynb inside JupyterLab on FABRIC:**
    ```bash
-   git clone https://github.com/gareging/P4Kube.git
-   cd P4Kube
+   wget https://raw.githubusercontent.com/gareging/P4Kube/refs/heads/main/P4Kube_setup.ipynb
 
 ## Launch the Notebook
 
