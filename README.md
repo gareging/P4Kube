@@ -7,7 +7,7 @@
 
 If you use **P4Kube** in your research, please cite our paper:
 
-@inproceedings{grigoryan2025p4kube,
+```@inproceedings{grigoryan2025p4kube,
 title={P4Kube: In-Network Load Balancer for Kubernetes},
 author={Grigoryan, Garegin and Penkowski, Kevin and Kwon, Minseok},
 booktitle={2025 IEEE 22nd Consumer Communications & Networking Conference (CCNC)},
@@ -15,6 +15,7 @@ pages={1--6},
 year={2025},
 organization={IEEE}
 }
+```
 ---
 
 ## Getting Started
