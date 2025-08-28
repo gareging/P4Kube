@@ -31,7 +31,7 @@ To run the code and reproduce our experiments:
 
 ## Launch the Notebook
 
-Open `P4Kube.ipynb` in JupyterLab on the FABRIC testbed and follow the step-by-step cells to 
+Open `P4Kube_setup.ipynb` in JupyterLab on the FABRIC testbed and follow the step-by-step cells to 
 - reserve the slice,
 - setup and configure networking using bmv2 P4 switch emulator,
 - setup and configure the Kubernetes cluster.
