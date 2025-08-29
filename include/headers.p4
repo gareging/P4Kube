@@ -53,24 +53,81 @@ header tcp_t {
     bit<16> urgentPtr;
 }
 
-// TCP option headers
-header Tcp_option_nop_h {
+/*TCP timestamp implementation sources:
+https://github.com/cheetahlib/cheetah-p4
+https://github.com/jafingerhut/p4-guide/blob/master/tcp-options-parser/tcp-options-parser.p4 */
+header Tcp_option_end_h {
     bit<8> kind;
 }
-header Tcp_option_ss_e {
-    bit<8> length;
-    bit<16> maxSegmentSize;
+header Tcp_option_nop_h {
+    bit<8> kind;
 }
 header Tcp_option_sz_h {
     bit<8> length;
 }
-header Tcp_option_sack_e {
-    varbit<256> sack;
+header Tcp_option_ss_h {
+    bit<8>  kind;
+    bit<8> length;
+    bit<32> maxSegmentSize;
 }
-header Tcp_option_timestamp_e {
-    bit<8>  length;
+header Tcp_option_s_h {
+    bit<8>  kind;
+    bit<24> scale;
+}
+header Tcp_option_sack_h {
+    bit<8>         kind;
+    bit<8>         length;
+    varbit<256>    sack;
+}
+
+header Tcp_option_timestamp_h {
+    bit<8>         kind;
+    bit<8>         length;
     bit<32> tsval;
     bit<32> tsecr;
+}
+
+//Versions without the kind for hop by hop
+header Tcp_option_ss_e {
+    bit<8> length;
+    bit<16> maxSegmentSize;
+}
+
+header Tcp_option_sack_e {
+    varbit<256>    sack;
+}
+header Tcp_option_timestamp_e {
+    bit<8>         length;
+    bit<32> tsval;
+    bit<32> tsecr;
+}
+
+header_union Tcp_option_h {
+    Tcp_option_end_h  end;
+    Tcp_option_nop_h  nop;
+    Tcp_option_ss_h   ss;
+    Tcp_option_s_h    s;
+    Tcp_option_sack_h sack;
+    Tcp_option_timestamp_h timestamp;    
+}
+
+// Defines a stack of 10 tcp options
+typedef Tcp_option_h[10] Tcp_option_stack;
+
+header Tcp_option_padding_h {
+    varbit<256> padding;
+}
+
+error {
+    TcpDataOffsetTooSmall,
+    TcpOptionTooLongForHeader,
+    TcpBadSackOptionLength
+}
+
+struct Tcp_option_sack_top
+{
+    bit<8> kind;
+    bit<8> length;
 }
 
 header info_t {
