@@ -57,7 +57,7 @@ On the client:
 
 ## Experimenting
 
-Clone P4Kube_experiments.ipynb inside JupyterLab on FABRIC:**
+Clone P4Kube_experiments.ipynb inside JupyterLab on FABRIC:
    ```bash
    wget https://raw.githubusercontent.com/gareging/P4Kube/refs/heads/main/P4Kube_experiments.ipynb
    ```
