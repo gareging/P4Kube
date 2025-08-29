@@ -36,8 +36,6 @@ Open `P4Kube_setup.ipynb` in JupyterLab on the FABRIC testbed and follow the ste
 - setup and configure networking using bmv2 P4 switch emulator,
 - setup and configure the Kubernetes cluster.
 
-For any questions, email to grigoryan@alfred.edu.
-
 ## Testing QUIC
 
 On master, run 
@@ -57,3 +55,12 @@ On the client:
    python3 http3_client.py --insecure https://<vip_of_quic_deployment>:4433/;
    ```
 
+## Experimenting
+
+Clone P4Kube_experiments.ipynb inside JupyterLab on FABRIC:**
+   ```bash
+   wget https://raw.githubusercontent.com/gareging/P4Kube/refs/heads/main/P4Kube_experiments.ipynb
+   ```
+Follow the instructions cell-by-cell.
+
+For any questions, please email to grigoryan@alfred.edu.
