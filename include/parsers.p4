@@ -115,51 +115,35 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.udp);
         transition select(hdr.udp.dstPort, hdr.udp.srcPort) {
             (7777, _): parse_info;
-            (_, 4433): parse_quic;
-            (4433, _): parse_quic;
-            default: accept;
+            /*(_, 4433): parse_quic;
+            (4433, _): parse_quic;*/
+            default: parse_quic;
         }
     }
 
     state parse_quic {
-        packet.extract(hdr.quic);
-        transition accept;
-        /*transition select(hdr.quic.hdr_type){
-            0: parse_quicShort;
-            1: parse_quicLong1;
-            default: accept;
-        }*/
-    }
-    /*
-    state parse_quicShort {
-        packet.extract(hdr.quicShort);
-        transition accept;
-    }
-
-    state parse_quicLong1 {
-        packet.extract(hdr.quicLong1);
-        transition parse_quicToken;
-    }
-
-    state parse_quicToken{
-        packet.extract(hdr.quicToken, (bit<32>)(8*hdr.quicLong1.token_len));
-        packet.extract(hdr.quicPayloadLen);
-        transition parse_quicPayload;
-    }
-
-   state parse_quicPayload{
-       packet.extract(hdr.quicPayload, (bit<32>)(8*hdr.quicPayloadLen.payload_len));
        transition select(packet.lookahead<bit<1>>()) {
-            1: parse_quicLong2; // another long header
+            1: parse_quicLong; // another long header
             default: accept;
         } 
-   }
+     }
 
-    state parse_quicLong2{
-       packet.extract(hdr.quicLong2);
+
+    state parse_quicLong {
+        packet.extract(hdr.quicLong1);
+        packet.extract(hdr.quicPayload, (bit<32>)(8*hdr.quicLong1.payload_len));
+        transition select(packet.lookahead<bit<1>>()) {
+            1: parse_quic_second; // another long header
+            default: accept;
+        } 
+    }
+
+
+    state parse_quic_second{
+       packet.extract(hdr.quic_second);
        transition accept;
     }
-    */
+ 
 
  // State to parse the incoming control packet and store the values
     state parse_info {

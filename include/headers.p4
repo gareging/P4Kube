@@ -144,26 +144,34 @@ header quic_t {
 }
 
 header quicLong_t{
+    bit<1> hdr_type;
+    bit<1> fixed;
+    bit<2> pkt_type;
+    bit<4> reserved;
     bit<32> version;
     bit<8> dcid_length;
+    bit<64> dst_cid;
+    /*
     bit<8> dcid_first_byte;
     bit<16> cookie;
     bit<40> dcid_residue;
+    */
     bit<8> scid_length;
     bit<64> src_cid;
     bit<8> token_len;
+    bit<16> payload_len; 
 }
 
 header quicToken_t{
     varbit<2048> token;
 }
 
-header quicPayloadLen_t{
+/*header quicPayloadLen_t{
     bit<16> payload_len; 
-}
+}*/
 
 header quicPayload_t{
-    varbit<2048> payload; 
+    varbit<524280> payload; 
 }
 
 header quicShort_t{
@@ -190,13 +198,13 @@ struct headers {
     ipv4_t     ipv4;
     udp_t      udp;
     tcp_t      tcp;
-    quic_t     quic;
+    //   quic_t     quic;
     //quicShort_t quicShort;
-    //quicLong_t quicLong1;
+    quicLong_t quicLong1;
     //quicToken_t quicToken;
     //quicPayloadLen_t quicPayloadLen;
-    //quicPayload_t quicPayload;
-    //quicLong_t quicLong2;
+    quicPayload_t quicPayload;
+    quic_t quic_second;
 
     Tcp_option_nop_h nop1;
     Tcp_option_nop_h nop2;
