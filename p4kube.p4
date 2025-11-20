@@ -36,7 +36,9 @@ register<bit<32>>(100) replica_request_counter;  // 100 replicas (or adjust acco
 register<bit<32>>(1) debug_hash_value;
 register<bit<32>>(1) debug_src_addr;
 register<bit<16>>(1) debug_src_port;
-
+register<bit<16>>(1) zero_rtt_counter;
+register<bit<48>>(1) last_timestamp;
+register<bit<48>>(1) check_delta;
 
 control MyIngress(inout headers hdr,
                   inout metadata meta,
@@ -155,10 +157,42 @@ control MyIngress(inout headers hdr,
         node_port.read(node_port_9, 9);  // Read node_port[9] into node_port_9
         bit<32> subnet_mask = 0xFFFFFF00;  // 255.255.255.0 mask to match 10.0.0.*
         bit<32> subnet_prefix = 0x0A000000;  // 10.0.0.0 in hexadecimal
-        if (hdr.quic.isValid() && ((hdr.ipv4.dstAddr & subnet_mask) == subnet_prefix)){
-            // quic packet to server
-             if ((hdr.quic.hdr_type == 1) && (hdr.quic.pkt_type == (bit<2>)0)){
-                 // handshake
+
+
+        bit<48> last;
+        bit<48> timestamp = standard_metadata.ingress_global_timestamp;
+        bit<48> delta;
+        bit<16> current_counter;
+        
+        last_timestamp.read(last, 0);
+        zero_rtt_counter.read(current_counter, 0);
+        
+        delta = timestamp - last;
+        check_delta.write(0, delta);
+        
+        if (delta > 1000000) {
+            zero_rtt_counter.write(0, 0);
+            current_counter = 0;
+        }
+
+        if (hdr.quicLong1.isValid()){
+           // 0-RTT packet
+           bit<1> zero_rtt = 0;
+           if (hdr.quicLong1.pkt_type == (bit<2>)0 && hdr.quic_second.isValid() && hdr.quic_second.pkt_type == (bit<2>)1){
+              zero_rtt = 1;
+              zero_rtt_counter.read(current_counter, 0);
+              zero_rtt_counter.write(0, current_counter+1);
+              last_timestamp.write(0, timestamp);
+           } 
+           
+           // Initial packet
+           if (hdr.quicLong1.isValid() && !hdr.quic_second.isValid() && hdr.quicLong1.hdr_type == 1 && hdr.quicLong1.pkt_type == (bit<2>)0){
+              // LB bypassing
+              if ((hdr.ipv4.dstAddr & subnet_mask) != subnet_prefix)
+              {
+                 drop();
+              }
+              else {
                  bit<32> replica_offset = 0; 
                  bit<32> base_ip = 0;         
                  bit<32> node_port_index = 0; 
@@ -176,7 +210,7 @@ control MyIngress(inout headers hdr,
                  }
 
                  // Hash across [0, num_groups) to choose a replica
-                hash(meta.ecmpHash,
+                 hash(meta.ecmpHash,
                     HashAlgorithm.crc16,
                     (bit<1>)0,
                     { hdr.ipv4.srcAddr,
@@ -187,27 +221,35 @@ control MyIngress(inout headers hdr,
                     base_ip },  // base for the hash function
                     num_groups);
 
-                bit<32> replica_index = replica_offset + (bit<32>)meta.ecmpHash;
+                 bit<32> replica_index = replica_offset + (bit<32>)meta.ecmpHash;
 
-                bit<16> sum = 0;
-                subtract(sum, hdr.udp.checksum);
-                subtract(sum, hdr.udp.dstPort);
-                subtract32(sum, hdr.ipv4.dstAddr);
+                 bit<16> sum = 0;
+                 subtract(sum, hdr.udp.checksum);
+                 subtract(sum, hdr.udp.dstPort);
+                 subtract32(sum, hdr.ipv4.dstAddr);
 
-                ip_addresses.read(hdr.ipv4.dstAddr, replica_index);
+                 ip_addresses.read(hdr.ipv4.dstAddr, replica_index);
 
-                node_port.read(hdr.udp.dstPort, node_port_index);
+                 node_port.read(hdr.udp.dstPort, node_port_index);
 
-                add32(sum, hdr.ipv4.dstAddr);
-                add(sum, hdr.udp.dstPort);
-                hdr.udp.checksum = ~sum;
+                 add32(sum, hdr.ipv4.dstAddr);
+                 add(sum, hdr.udp.dstPort);
+                 hdr.udp.checksum = ~sum;
 
-                // Apply Longest Prefix Match to route to the next hop
-                ipv4_lpm.apply();
-                 
-	     }
-            
-        } 
+                 // Apply Longest Prefix Match to route to the next hop
+                 ipv4_lpm.apply();
+
+              }
+           }
+           else if (zero_rtt == 1 && current_counter > 5){
+               drop();
+           }
+           else {
+                 ipv4_lpm.apply();
+           }
+
+
+        }
         // Check if the request is a TCP request on port 80, and the destination IP is 10.0.0.2, 10.0.0.3 or 10.0.0.4 
         else if (hdr.tcp.isValid() && hdr.tcp.dstPort == 80 && ((hdr.ipv4.dstAddr & subnet_mask) == subnet_prefix)) {  
             bit<32> replica_offset = 0; 
@@ -483,13 +525,13 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit(hdr.ipv4);
         packet.emit(hdr.tcp);
         packet.emit(hdr.udp);
-        packet.emit(hdr.quic);
+        //packet.emit(hdr.quic);
         //packet.emit(hdr.quicShort);
-        //packet.emit(hdr.quicLong1);
+        packet.emit(hdr.quicLong1);
         //packet.emit(hdr.quicToken);
         //packet.emit(hdr.quicPayloadLen);
-        //packet.emit(hdr.quicPayload);
-        //packet.emit(hdr.quicLong2);
+        packet.emit(hdr.quicPayload);
+        packet.emit(hdr.quic_second);
         packet.emit(hdr.nop1);
         packet.emit(hdr.nop2);
         packet.emit(hdr.ss);
