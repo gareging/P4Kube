@@ -1,4 +1,4 @@
-**Update (Dec 2025):** We added support for load balancing over the QUIC protocol.
+> **Update (Dec 2025):** We added support for load balancing over the QUIC protocol.
 --
 # P4Kube: In-Network Load-Aware Load Balancer for Kubernetes
 
